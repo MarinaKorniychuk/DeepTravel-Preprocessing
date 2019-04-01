@@ -178,12 +178,28 @@ def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_i
     return intermediate_path[1:-1]
 
 
-def ccw(a, b, c):
-    return (b[1] - a[1]) * (c[0] - b[0]) > (b[0] - a[0]) * (c[1] - b[1])
 
 
-def check_intersection(a, b):
-    return ccw(a[0], a[1], b[0]) != ccw(a[0], a[1], b[1]) and ccw(b[0], b[1], a[0]) != ccw(b[0], b[1], a[1])
+def check_intersection(a_coeffs, b_coeffs):
+    a_coeffs = line(a_coeffs[0], a_coeffs[1])
+    b_coeffs = line(b_coeffs[0], b_coeffs[1])
+
+    d = a_coeffs[0] * b_coeffs[1] - a_coeffs[1] * b_coeffs[0]
+    dx = a_coeffs[2] * b_coeffs[1] - a_coeffs[1] * b_coeffs[2]
+    dy = a_coeffs[0] * b_coeffs[2] - a_coeffs[2] * b_coeffs[0]
+    if d != 0:
+        x = dx / d
+        y = dy / d
+        return x, y
+    else:
+        return False
+
+
+def line(a, b):
+    coeff_a = (a[1] - b[1])
+    coeff_b = (b[0] - a[0])
+    coeff_c = (a[0] * b[1] - b[0] * a[1])
+    return coeff_a, coeff_b, -coeff_c
 
 
 def get_borders_coords(i, j, zero_coords, cell_params):
