@@ -382,6 +382,11 @@ def read_data(data_file):
     return data
 
 
+def save_extracted_traffic_features(short_ttf, long_ttf, data_file):
+    with open('./traffic_features/' + data_file, 'w') as fp:
+        json.dump({'short_term': short_ttf, 'long_term': long_ttf}, fp)
+
+
 def read_config(config_file='./config.json'):
     with open(config_file) as cfile:
         config = json.load(cfile)

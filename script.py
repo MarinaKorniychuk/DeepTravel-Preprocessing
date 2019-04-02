@@ -35,6 +35,8 @@ def define_travel_grid_path(data, coords, n):
 
     utils.aggregate_historical_data(short_ttf, long_ttf)
 
+    return short_ttf, long_ttf
+
 
 def main():
     config = utils.read_config()
@@ -42,7 +44,9 @@ def main():
     for data_file in config['data']:
         data = utils.read_data(data_file)
 
-        define_travel_grid_path(data, config['coords'], config['n'])
+        short_ttf, long_ttf = define_travel_grid_path(data, config['coords'], config['n'])
+
+        utils.save_extracted_traffic_features(short_ttf, long_ttf, data_file)
 
 
 if __name__ == '__main__':
