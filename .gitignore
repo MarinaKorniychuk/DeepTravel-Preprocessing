@@ -1,1 +1,3 @@
 .idea/*
+__pycache__/*
+traffic_features/*

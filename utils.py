@@ -1,3 +1,6 @@
+from __future__ import division
+
+import datetime
 import json
 
 import numpy as np
@@ -23,7 +26,7 @@ def define_grid_cell(lat_1, long_1, lat_2, long_2, n=256):
     return width, height
 
 
-def map_gps_to_grid(longs, lats, cell_params):
+def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params, short_ttf, long_ttf):
     T_path_X = []
     T_path_Y = []
 
@@ -35,8 +38,8 @@ def map_gps_to_grid(longs, lats, cell_params):
 
     for ind, point_coords in enumerate(points):
         # define indices of the grid cell to which this gps point belongs (from 0 to 255)
-        x_ind = point_coords[0] // cell_params[0]
-        y_ind = point_coords[1] // cell_params[1]
+        x_ind = int(point_coords[0] // cell_params[0])
+        y_ind = int(point_coords[1] // cell_params[1])
 
         # avoid adding same grid cell more than once (if some consecutive points belongs to one grid cell)
         if T_path_X and x_ind == T_path_X[-1] and y_ind == T_path_Y[-1]:
@@ -49,7 +52,7 @@ def map_gps_to_grid(longs, lats, cell_params):
         # (only if current cell is not very first one)
         if G_path_X:
 
-            cells = find_intermediate_cells(
+            cells, intersection_points = find_intermediate_cells(
                 prev_point,
                 G_path_X[-1], G_path_Y[-1],
                 point_coords,
@@ -57,9 +60,19 @@ def map_gps_to_grid(longs, lats, cell_params):
                 cell_params
             )
 
-            for cell in cells:
+            for cell in cells[1: -1]:
                 G_path_X.append(cell[0])
                 G_path_Y.append(cell[1])
+
+            # extract historical speed and time data for short_ttf and long_ttf dicts
+            extract_traffic_features(
+                cells,
+                prev_point, point_coords,
+                intersection_points,
+                timeID, weekID,
+                time_gap[ind - 1], time_gap[ind],
+                dist_gap[ind - 1], dist_gap[ind],
+                short_ttf, long_ttf)
 
         G_path_X.append(x_ind)
         G_path_Y.append(y_ind)
@@ -141,6 +154,7 @@ def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_i
 
     intersection_found = False
     intermediate_path = [[s_x_ind, s_y_ind], ]
+    intersection_points = set()
 
     # until the finish cell is reached
     while i != i_f or j != j_f:
@@ -158,13 +172,14 @@ def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_i
             lines = get_borders_coords(i_check, j_check, zero_coords, cell_params)
             for line in lines:
                 if check_intersection(path_line, line):
+                    coords = find_intersection_point(path_line, line)
                     intersection_found = True
-                    i = i_check
-                    j = j_check
-                    intermediate_path.append([intermediate_path[-1][0] + j_step, intermediate_path[-1][1] - i_step])
-                    break
+                    intersection_points.add(coords)
 
             if intersection_found:
+                i = i_check
+                j = j_check
+                intermediate_path.append([intermediate_path[-1][0] + j_step, intermediate_path[-1][1] - i_step])
                 break
 
         if intersection_found:
@@ -174,15 +189,133 @@ def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_i
         break
 
     # for now intermediate_path array includes start and finish cells as first and last items
-    # cut those values to return only intermediate cells (empty if there are no cells found)
-    return intermediate_path[1:-1]
+    intersection_points = list(intersection_points)
+    intersection_points.sort(key=lambda coords: find_line_segment_length(coords_s[0], coords_s[1], coords[0], coords[1]))
+
+    return intermediate_path, intersection_points
 
 
+def aggregate_historical_data(short_ttf, long_ttf):
+    """
+    For each grid cell in short_ttf and long_ttf calculate average historical speed and travel time
+    Remove collected historical speeds and times
+    :param short_ttf:
+    :param long_ttf:
+    :return:
+    """
+
+    for i in range(256):
+        for j in range(256):
+            for time_bin, data in short_ttf[i][j].items():
+                short_ttf[i][j][time_bin]['hist_speed'] = np.mean(short_ttf[i][j][time_bin]['speeds'])
+                short_ttf[i][j][time_bin]['aver_time'] = np.mean(short_ttf[i][j][time_bin]['times'])
+                del short_ttf[i][j][time_bin]['speeds']
+                del short_ttf[i][j][time_bin]['times']
+
+    for i in range(256):
+        for j in range(256):
+            for day, data in long_ttf[i][j].items():
+                if len(short_ttf[i][j][day]['speeds']) > 1:
+                    pass
+                long_ttf[i][j][day]['hist_speed'] = np.mean(long_ttf[i][j][day]['speeds'])
+                long_ttf[i][j][day]['aver_time'] = np.mean(long_ttf[i][j][day]['times'])
+                del long_ttf[i][j][day]['speeds']
+                del long_ttf[i][j][day]['times']
 
 
-def check_intersection(a_coeffs, b_coeffs):
-    a_coeffs = line(a_coeffs[0], a_coeffs[1])
-    b_coeffs = line(b_coeffs[0], b_coeffs[1])
+def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID, s_time, f_time, s_dist, f_dist, short_ttf, long_ttf):
+
+    def get_dist_in_metres(dist_gap, dist_gap_in_deg, dist_in_deg):
+        """
+        Returns calculated part of the path in metres.
+
+        :param dist_gap: part of the path in kilometres
+        :param dist_gap_in_deg: part of the path in degrees
+        :param dist_in_deg: full path in degrees
+        :return: part of the path in metres
+        """
+        return dist_gap_in_deg / dist_in_deg * dist_gap * 1000
+
+    speed_array = 'speeds'
+    time_array = 'times'
+
+    start_time = (timeID + s_time) % 1439
+    # example of time been name: '18.25.00'
+    time_bin = str(datetime.timedelta(minutes=(start_time - start_time % 5)))
+
+    # calculate length of the whole path between cons gps points in km and degrees
+    dist_in_deg = find_line_segment_length(*s_point, *f_point)
+    dist_gap = f_dist - s_dist
+
+    speed = calculate_speed_for_cell(f_time - s_time, dist_gap)
+
+    # initialize starting segment with start gps point
+    s_segment = s_point
+
+    # extract short-term and long-term features for each segment between two consequential points.
+    # points: start_point, [intermediate points ...], finish_point
+    # intersection point found for each segment, and travel time divided in ratio of the segment part's lengths.
+    for ind, cell in enumerate(cells[1:]):
+        prev_cell = cells[ind]
+        int_point = int_points[ind]
+        if len(int_points) > ind + 1:
+            f_segment = int_points[ind + 1]
+        else:
+            f_segment = f_point
+
+        # calculate time for the each part of the segment
+        # save extracted speed and time as short-term and ling-term traffic feature for particular cells
+        seg_time = get_dist_in_metres(dist_gap, find_line_segment_length(*s_segment, *int_point), dist_in_deg) / speed
+        if seg_time:
+            short_ttf[prev_cell[1]][prev_cell[0]][time_bin][speed_array].append(speed)
+            short_ttf[prev_cell[1]][prev_cell[0]][time_bin][time_array].append(seg_time)
+            long_ttf[prev_cell[1]][prev_cell[0]][weekID][speed_array].append(speed)
+            long_ttf[prev_cell[1]][prev_cell[0]][weekID][time_array].append(seg_time)
+
+        seg_time = get_dist_in_metres(dist_gap, find_line_segment_length(*int_point, *f_segment), dist_in_deg) / speed
+        if seg_time:
+            short_ttf[cell[1]][cell[0]][time_bin][speed_array].append(speed)
+            short_ttf[cell[1]][cell[0]][time_bin][time_array].append(seg_time)
+            long_ttf[cell[1]][cell[0]][weekID][speed_array].append(speed)
+            long_ttf[cell[1]][cell[0]][weekID][time_array].append(seg_time)
+
+        # change start segment for the next iteration
+        s_segment = f_segment
+
+
+def calculate_speed_for_cell(time, dist):
+    """
+    :param time: travel time between two consequential points (sec)
+    :param dist: travel distance between two consequential points (km)
+    :return: estimated historical speed (m/sec)
+    """
+    return dist * 1000 / time
+
+
+def ccw(a, b, c):
+    return (b[1] - a[1]) * (c[0] - b[0]) > (b[0] - a[0]) * (c[1] - b[1])
+
+
+def check_intersection(a, b):
+    return ccw(a[0], a[1], b[0]) != ccw(a[0], a[1], b[1]) and ccw(b[0], b[1], a[0]) != ccw(b[0], b[1], a[1])
+
+
+def find_intersection_point(a_coords, b_coords):
+    """
+    Return coordinates of two segments intersection point.
+    :param a_coords:
+    :param b_coords:
+    :return:
+    """
+
+    def line(a, b):
+        coeff_a = (a[1] - b[1])
+        coeff_b = (b[0] - a[0])
+        coeff_c = (a[0] * b[1] - b[0] * a[1])
+        return coeff_a, coeff_b, -coeff_c
+
+    a_coeffs = line(a_coords[0], a_coords[1])
+    b_coeffs = line(b_coords[0], b_coords[1])
 
     d = a_coeffs[0] * b_coeffs[1] - a_coeffs[1] * b_coeffs[0]
     dx = a_coeffs[2] * b_coeffs[1] - a_coeffs[1] * b_coeffs[2]
@@ -195,11 +328,11 @@ def check_intersection(a_coeffs, b_coeffs):
         return False
 
 
-def line(a, b):
-    coeff_a = (a[1] - b[1])
-    coeff_b = (b[0] - a[0])
-    coeff_c = (a[0] * b[1] - b[0] * a[1])
-    return coeff_a, coeff_b, -coeff_c
+def find_line_segment_length(p1_x, p1_y, p2_x, p2_y):
+    p1 = complex(p1_x, p1_y)
+    p2 = complex(p2_x, p2_y)
+
+    return abs(p1 - p2)
 
 
 def get_borders_coords(i, j, zero_coords, cell_params):

@@ -2,5 +2,6 @@
   "n": 256,
   "singapore_coords": [1.21, 103.6, 1.47, 104],
   "coords": [30.09, 102.9, 31.44, 104.9],
-  "data": ["train_00", "train_01", "train_02", "train_03", "train_04", "test"]
+  "data": ["train_00", "train_01", "train_02", "train_03", "train_04"],
+  "test": ["test"]
 }
