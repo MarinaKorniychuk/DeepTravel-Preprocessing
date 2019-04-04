@@ -1,18 +1,21 @@
 import collections
 import utils
+import argparse
 import numpy as np
 
 
-def define_travel_grid_path(data, coords, n):
+parser = argparse.ArgumentParser()
+parser.add_argument('--grid_size', type=int, default=256)
+parser.add_argument('--ttf_destination_folder', type=str, default='./traffic_features/')
+parser.add_argument('--data_destination_folder', type=str, default='./processed_data/')
+
+args = parser.parse_args()
+
+
+def define_travel_grid_path(data, coords, short_ttf, long_ttf, n):
 
     # compute size of grid cell
     cell_params = utils.define_grid_cell(*coords, n)
-
-    # initialize arrays for short-term and long-term traffic features
-    speed_array = 'speeds'
-    time_array = 'times'
-    short_ttf = [[collections.defaultdict(lambda: {speed_array: [], time_array: []}) for _ in range(256)] for _ in range(256)]
-    long_ttf = [[collections.defaultdict(lambda: {speed_array: [], time_array: []}) for _ in range(256)] for _ in range(256)]
 
     for ddict in data:
 
@@ -33,20 +36,29 @@ def define_travel_grid_path(data, coords, n):
             long_ttf
         )
 
-    utils.aggregate_historical_data(short_ttf, long_ttf)
-
-    return short_ttf, long_ttf
-
 
 def main():
     config = utils.read_config()
 
+    # initialize arrays for short-term and long-term traffic features
+    speed_array = 'speeds'
+    time_array = 'times'
+    short_ttf = [
+        [collections.defaultdict(lambda: {speed_array: [], time_array: []}) for _ in range(256)] for _ in range(256)
+    ]
+    long_ttf = [
+        [collections.defaultdict(lambda: {speed_array: [], time_array: []}) for _ in range(256)] for _ in range(256)
+    ]
+
     for data_file in config['data']:
         data = utils.read_data(data_file)
 
-        short_ttf, long_ttf = define_travel_grid_path(data, config['coords'], config['n'])
+        define_travel_grid_path(data, config['coords'], short_ttf, long_ttf, args.grid_size)
 
-        utils.save_extracted_traffic_features(short_ttf, long_ttf, data_file)
+        utils.save_processed_data(data, args.data_destination_folder, data_file)
+
+    utils.aggregate_historical_data(short_ttf, long_ttf)
+    utils.save_extracted_traffic_features(short_ttf, long_ttf, args.ttf_destination_folder)
 
 
 if __name__ == '__main__':

@@ -207,8 +207,8 @@ def aggregate_historical_data(short_ttf, long_ttf):
     for i in range(256):
         for j in range(256):
             for time_bin, data in short_ttf[i][j].items():
-                short_ttf[i][j][time_bin]['hist_speed'] = np.mean(short_ttf[i][j][time_bin]['speeds'])
-                short_ttf[i][j][time_bin]['aver_time'] = np.mean(short_ttf[i][j][time_bin]['times'])
+                short_ttf[i][j][time_bin]['speed'] = np.mean(short_ttf[i][j][time_bin]['speeds'])
+                short_ttf[i][j][time_bin]['time'] = np.mean(short_ttf[i][j][time_bin]['times'])
                 del short_ttf[i][j][time_bin]['speeds']
                 del short_ttf[i][j][time_bin]['times']
 
@@ -217,8 +217,8 @@ def aggregate_historical_data(short_ttf, long_ttf):
             for day, data in long_ttf[i][j].items():
                 if len(short_ttf[i][j][day]['speeds']) > 1:
                     pass
-                long_ttf[i][j][day]['hist_speed'] = np.mean(long_ttf[i][j][day]['speeds'])
-                long_ttf[i][j][day]['aver_time'] = np.mean(long_ttf[i][j][day]['times'])
+                long_ttf[i][j][day]['speed'] = np.mean(long_ttf[i][j][day]['speeds'])
+                long_ttf[i][j][day]['time'] = np.mean(long_ttf[i][j][day]['times'])
                 del long_ttf[i][j][day]['speeds']
                 del long_ttf[i][j][day]['times']
 
@@ -382,9 +382,21 @@ def read_data(data_file):
     return data
 
 
-def save_extracted_traffic_features(short_ttf, long_ttf, data_file):
-    with open('./traffic_features/' + data_file, 'w') as fp:
-        json.dump({'short_term': short_ttf, 'long_term': long_ttf}, fp)
+def save_extracted_traffic_features(short_ttf, long_ttf, folder):
+    with open(folder + 'short_ttf', 'w') as file:
+        json.dump({'short_term': short_ttf}, file)
+        file.write('\n')
+
+    with open(folder + 'long_ttf', 'w') as file:
+        json.dump({'long_term': long_ttf}, file)
+        file.write('\n')
+
+
+def save_processed_data(data, folder, data_file):
+    with open(folder + data_file, 'w') as file:
+        for d in data:
+            json.dump(d, file)
+            file.write('\n')
 
 
 def read_config(config_file='./config.json'):
