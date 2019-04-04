@@ -1,6 +1,7 @@
 import collections
 import utils
 import argparse
+import logger
 import numpy as np
 
 
@@ -39,6 +40,7 @@ def define_travel_grid_path(data, coords, short_ttf, long_ttf, n):
 
 def main():
     config = utils.read_config()
+    elogger = logger.get_logger()
 
     # initialize arrays for short-term and long-term traffic features
     speed_array = 'speeds'
@@ -51,13 +53,18 @@ def main():
     ]
 
     for data_file in config['data']:
+        elogger.info('Generating G and T paths and extracting traffic features on {} ...'.format(data_file))
+
         data = utils.read_data(data_file)
 
         define_travel_grid_path(data, config['coords'], short_ttf, long_ttf, args.grid_size)
 
+        elogger.info('Saving extended with G and T paths data in {}{}.\n'.format(args.data_destination_folder, data_file))
         utils.save_processed_data(data, args.data_destination_folder, data_file)
 
+    elogger.info('Aggregate historical traffic features ...')
     utils.aggregate_historical_data(short_ttf, long_ttf)
+    elogger.info('Saving extracted traffic features in {}'.format(args.ttf_destination_folder))
     utils.save_extracted_traffic_features(short_ttf, long_ttf, args.ttf_destination_folder)
 
 
