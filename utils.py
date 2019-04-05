@@ -209,6 +209,7 @@ def aggregate_historical_data(short_ttf, long_ttf):
             for time_bin, data in short_ttf[i][j].items():
                 short_ttf[i][j][time_bin]['speed'] = np.mean(short_ttf[i][j][time_bin]['speeds'])
                 short_ttf[i][j][time_bin]['time'] = np.mean(short_ttf[i][j][time_bin]['times'])
+                short_ttf[i][j][time_bin]['n'] = len(short_ttf[i][j][time_bin]['times'])
                 del short_ttf[i][j][time_bin]['speeds']
                 del short_ttf[i][j][time_bin]['times']
 
@@ -219,6 +220,7 @@ def aggregate_historical_data(short_ttf, long_ttf):
                     pass
                 long_ttf[i][j][day]['speed'] = np.mean(long_ttf[i][j][day]['speeds'])
                 long_ttf[i][j][day]['time'] = np.mean(long_ttf[i][j][day]['times'])
+                long_ttf[i][j][day]['n'] = len(long_ttf[i][j][day]['times'])
                 del long_ttf[i][j][day]['speeds']
                 del long_ttf[i][j][day]['times']
 
