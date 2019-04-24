@@ -33,6 +33,8 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
     G_path_X = []
     G_path_Y = []
 
+    time_bins = []
+
     points = zip(longs, lats)
     prev_point = ()
 
@@ -40,6 +42,7 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
         # define indices of the grid cell to which this gps point belongs (from 0 to 255)
         x_ind = int(point_coords[0] // cell_params[0])
         y_ind = int(point_coords[1] // cell_params[1])
+        time_bin = int(str(datetime.timedelta(minutes=timeID, seconds=time_gap[ind])).split(':')[0])
 
         # avoid adding same grid cell more than once (if some consecutive points belongs to one grid cell)
         if T_path_X and x_ind == T_path_X[-1] and y_ind == T_path_Y[-1]:
@@ -64,6 +67,8 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
                 G_path_X.append(cell[0])
                 G_path_Y.append(cell[1])
 
+                time_bins.append(time_bin)
+
             # extract historical speed and time data for short_ttf and long_ttf dicts
             extract_traffic_features(
                 cells,
@@ -76,10 +81,11 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
 
         G_path_X.append(x_ind)
         G_path_Y.append(y_ind)
+        time_bins.append(time_bin)
 
         prev_point = point_coords
 
-    return T_path_X, T_path_Y, G_path_X, G_path_Y
+    return T_path_X, T_path_Y, G_path_X, G_path_Y, time_bins
 
 
 def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_ind, cell_params):
