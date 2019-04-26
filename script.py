@@ -26,7 +26,7 @@ def define_travel_grid_path(data, coords, short_ttf, long_ttf, n):
 
         # T_path - sequence of grid indices that correspond historical gps points
         # G_path - sequence of grid indices  of full path (with intermediate cells without gps points)
-        ddict['T_X'], ddict['T_Y'], ddict['G_X'], ddict['G_Y'], ddict['time_bin'] = utils.map_gps_to_grid(
+        ddict['T_X'], ddict['T_Y'], ddict['G_X'], ddict['G_Y'], ddict['time_bin'], ddict['dr_states'] = utils.map_gps_to_grid(
             x, y,
             ddict['timeID'],
             ddict['weekID'],
@@ -34,7 +34,8 @@ def define_travel_grid_path(data, coords, short_ttf, long_ttf, n):
             ddict['dist_gap'],
             cell_params,
             short_ttf,
-            long_ttf
+            long_ttf,
+            ddict['dist']
         )
 
         ddict['day_bin'] = [ddict['weekID'] for _ in ddict['G_X']]

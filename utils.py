@@ -26,7 +26,7 @@ def define_grid_cell(lat_1, long_1, lat_2, long_2, n=256):
     return width, height
 
 
-def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params, short_ttf, long_ttf):
+def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params, short_ttf, long_ttf, dist):
     T_path_X = []
     T_path_Y = []
 
@@ -34,6 +34,7 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
     G_path_Y = []
 
     time_bins = []
+    dr_state = [np.zeros(4), ]
 
     points = zip(longs, lats)
     prev_point = ()
@@ -46,10 +47,10 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
 
         # avoid adding same grid cell more than once (if some consecutive points belongs to one grid cell)
         if T_path_X and x_ind == T_path_X[-1] and y_ind == T_path_Y[-1]:
-            continue
-
-        T_path_X.append(x_ind)
-        T_path_Y.append(y_ind)
+            pass
+        else:
+            T_path_X.append(x_ind)
+            T_path_Y.append(y_ind)
 
         # find intermediate cells  if exist before adding current cell to G_path
         # (only if current cell is not very first one)
@@ -63,12 +64,6 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
                 cell_params
             )
 
-            for cell in cells[1: -1]:
-                G_path_X.append(cell[0])
-                G_path_Y.append(cell[1])
-
-                time_bins.append(time_bin)
-
             # extract historical speed and time data for short_ttf and long_ttf dicts
             extract_traffic_features(
                 cells,
@@ -77,15 +72,29 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
                 timeID, weekID,
                 time_gap[ind - 1], time_gap[ind],
                 dist_gap[ind - 1], dist_gap[ind],
-                short_ttf, long_ttf)
+                short_ttf, long_ttf,
+                dr_state, len(G_path_X) - 1,
+                dist
+            )
 
-        G_path_X.append(x_ind)
-        G_path_Y.append(y_ind)
-        time_bins.append(time_bin)
+            for cell in cells[1: -1]:
+                G_path_X.append(cell[0])
+                G_path_Y.append(cell[1])
+
+                time_bins.append(time_bin)
+
+        if G_path_X and x_ind == G_path_X[-1] and y_ind == G_path_Y[-1]:
+            pass
+        else:
+            G_path_X.append(x_ind)
+            G_path_Y.append(y_ind)
+            time_bins.append(time_bin)
 
         prev_point = point_coords
 
-    return T_path_X, T_path_Y, G_path_X, G_path_Y, time_bins
+    dr_state = [nd.tolist() for nd in dr_state]
+
+    return T_path_X, T_path_Y, G_path_X, G_path_Y, time_bins, dr_state
 
 
 def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_ind, cell_params):
@@ -160,6 +169,9 @@ def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_i
 
     intersection_found = False
     intermediate_path = [[s_x_ind, s_y_ind], ]
+    # if i == i_f and j == j_f:
+    #     intermediate_path.append([f_x_ind, f_y_ind])
+
     intersection_points = set()
 
     # until the finish cell is reached
@@ -231,7 +243,8 @@ def aggregate_historical_data(short_ttf, long_ttf):
                 del long_ttf[i][j][day]['times']
 
 
-def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID, s_time, f_time, s_dist, f_dist, short_ttf, long_ttf):
+def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID, s_time, f_time, s_dist, f_dist,
+                             short_ttf, long_ttf, dr_state, g_path_len, dist):
 
     def get_dist_in_metres(dist_gap, dist_gap_in_deg, dist_in_deg):
         """
@@ -242,23 +255,41 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
         :param dist_in_deg: full path in degrees
         :return: part of the path in metres
         """
-        return dist_gap_in_deg / dist_in_deg * dist_gap * 1000
+        return dist_gap_in_deg / dist_in_deg * dist_gap
 
     speed_array = 'speeds'
     time_array = 'times'
+
+    dr_state.extend([np.zeros(4) for _ in cells[1:]])
 
     start_time = (timeID + s_time) % 1439
     # example of time been name: '18.25.00'
     time_bin = str(datetime.timedelta(minutes=(start_time - start_time % 5)))
 
-    # calculate length of the whole path between cons gps points in km and degrees
+    # calculate length of the whole path between cons gps points in degrees and metres
     dist_in_deg = find_line_segment_length(*s_point, *f_point)
-    dist_gap = f_dist - s_dist
+    dist_gap = (f_dist - s_dist) * 1000
 
     speed = calculate_speed_for_cell(f_time - s_time, dist_gap)
 
+    if not speed:
+        return
+
     # initialize starting segment with start gps point
     s_segment = s_point
+
+    segs = []
+
+    if not int_points:
+        cell = cells[0]
+        segs.append(dist_gap)
+        short_ttf[cell[1]][cell[0]][time_bin][speed_array].append(speed)
+        short_ttf[cell[1]][cell[0]][time_bin][time_array].append(dist_gap / speed)
+        long_ttf[cell[1]][cell[0]][weekID][speed_array].append(speed)
+        long_ttf[cell[1]][cell[0]][weekID][time_array].append(dist_gap / speed)
+        update_driving_states(dr_state, g_path_len, s_dist, dist_gap, dist)
+
+        return
 
     # extract short-term and long-term features for each segment between two consequential points.
     # points: start_point, [intermediate points ...], finish_point
@@ -271,24 +302,41 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
         else:
             f_segment = f_point
 
-        # calculate time for the each part of the segment
-        # save extracted speed and time as short-term and ling-term traffic feature for particular cells
-        seg_time = get_dist_in_metres(dist_gap, find_line_segment_length(*s_segment, *int_point), dist_in_deg) / speed
-        if seg_time:
+        # calculate lenght of the each part of the segment
+        # save extracted speed and calculated time as short-term and ling-term traffic feature for particular cells
+        seg_dist = get_dist_in_metres(dist_gap, find_line_segment_length(*s_segment, *int_point), dist_in_deg)
+        if seg_dist:
+            segs.append(seg_dist)
             short_ttf[prev_cell[1]][prev_cell[0]][time_bin][speed_array].append(speed)
-            short_ttf[prev_cell[1]][prev_cell[0]][time_bin][time_array].append(seg_time)
+            short_ttf[prev_cell[1]][prev_cell[0]][time_bin][time_array].append(seg_dist / speed)
             long_ttf[prev_cell[1]][prev_cell[0]][weekID][speed_array].append(speed)
-            long_ttf[prev_cell[1]][prev_cell[0]][weekID][time_array].append(seg_time)
+            long_ttf[prev_cell[1]][prev_cell[0]][weekID][time_array].append(seg_dist / speed)
+            update_driving_states(dr_state, g_path_len + ind, s_dist, seg_dist, dist)
 
-        seg_time = get_dist_in_metres(dist_gap, find_line_segment_length(*int_point, *f_segment), dist_in_deg) / speed
-        if seg_time:
+        seg_dist = get_dist_in_metres(dist_gap, find_line_segment_length(*int_point, *f_segment), dist_in_deg)
+        if seg_dist:
+            segs.append(seg_dist)
             short_ttf[cell[1]][cell[0]][time_bin][speed_array].append(speed)
-            short_ttf[cell[1]][cell[0]][time_bin][time_array].append(seg_time)
+            short_ttf[cell[1]][cell[0]][time_bin][time_array].append(seg_dist / speed)
             long_ttf[cell[1]][cell[0]][weekID][speed_array].append(speed)
-            long_ttf[cell[1]][cell[0]][weekID][time_array].append(seg_time)
+            long_ttf[cell[1]][cell[0]][weekID][time_array].append(seg_dist / speed)
+            update_driving_states(dr_state, g_path_len + ind + 1, s_dist, seg_dist, dist)
 
         # change start segment for the next iteration
         s_segment = f_segment
+
+
+def update_driving_states(dr_state, ind, s_dist, seg_dist, dist):
+    if ind >= len(dr_state):
+        dr_state.append(np.zeros(4))
+    dr_state[ind][3] += seg_dist / (dist * 1000)
+    stage = 0
+    if 0.2 < s_dist / dist < 0.8:
+        stage = 1
+    elif s_dist / dist > 0.8:
+        stage = 2
+
+    dr_state[ind][stage] = 1
 
 
 def calculate_speed_for_cell(time, dist):
