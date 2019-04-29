@@ -234,8 +234,6 @@ def aggregate_historical_data(short_ttf, long_ttf):
     for i in range(256):
         for j in range(256):
             for day, data in long_ttf[i][j].items():
-                if len(short_ttf[i][j][day]['speeds']) > 1:
-                    pass
                 long_ttf[i][j][day]['speed'] = np.mean(long_ttf[i][j][day]['speeds'])
                 long_ttf[i][j][day]['time'] = np.mean(long_ttf[i][j][day]['times'])
                 long_ttf[i][j][day]['n'] = len(long_ttf[i][j][day]['times'])
@@ -342,10 +340,10 @@ def update_driving_states(dr_state, ind, s_dist, seg_dist, dist):
 def calculate_speed_for_cell(time, dist):
     """
     :param time: travel time between two consequential points (sec)
-    :param dist: travel distance between two consequential points (km)
+    :param dist: travel distance between two consequential points (m)
     :return: estimated historical speed (m/sec)
     """
-    return dist * 1000 / time
+    return dist / time
 
 
 def ccw(a, b, c):
