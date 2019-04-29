@@ -440,12 +440,14 @@ def read_data(data_file):
 
 def save_extracted_traffic_features(short_ttf, long_ttf, folder):
     with open(folder + 'short_ttf', 'w') as file:
-        json.dump({'short_term': short_ttf}, file)
-        file.write('\n')
+        for f in short_ttf:
+            json.dump(f, file)
+            file.write('\n')
 
     with open(folder + 'long_ttf', 'w') as file:
-        json.dump({'long_term': long_ttf}, file)
-        file.write('\n')
+        for f in long_ttf:
+            json.dump(f, file)
+            file.write('\n')
 
 
 def save_processed_data(data, folder, data_file):
