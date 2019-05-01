@@ -63,9 +63,9 @@ def main():
         helpers.save_processed_data(data, args.data_destination_folder, data_file)
 
     elogger.info('Aggregate historical traffic features ...')
-    utils.aggregate_historical_data(short_ttf, long_ttf)
+    helpers.aggregate_historical_data(short_ttf, long_ttf)
     elogger.info('Saving extracted traffic features in {}'.format(args.ttf_destination_folder))
-    utils.save_extracted_traffic_features(short_ttf, long_ttf, args.ttf_destination_folder)
+    helpers.save_extracted_traffic_features(short_ttf, long_ttf, args.ttf_destination_folder)
 
 
 if __name__ == '__main__':
