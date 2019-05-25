@@ -38,6 +38,8 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
     time_bins = []
     dr_state = [np.zeros(4), ]
 
+    borders = []
+
     points = zip(longs, lats)
     prev_point = ()
 
@@ -76,7 +78,8 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
                 dist_gap[ind - 1], dist_gap[ind],
                 short_ttf, long_ttf,
                 dr_state, len(G_path_X) - 1,
-                dist
+                dist,
+                borders,
             )
 
             time_bin = int((timeID + time_gap[ind - 1] // 60) % 1439 // 5)
@@ -99,8 +102,9 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
         prev_point = point_coords
 
     dr_state = [nd.tolist() for nd in dr_state]
+    borders.append(time_gap[-1])
 
-    return T_path_X, T_path_Y, G_path_X, G_path_Y, hour_bins, time_bins, dr_state
+    return T_path_X, T_path_Y, G_path_X, G_path_Y, hour_bins, time_bins, dr_state, borders
 
 
 def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_ind, cell_params):
@@ -260,7 +264,7 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
     time_bin = int((start_time - start_time % 5) // 5)
 
     # calculate length of the whole path between cons gps points in degrees and metres
-    dist_in_deg = find_line_segment_length(*s_point, *f_point)
+    # dist_in_deg = find_line_segment_length(*s_point, *f_point)
     dist_gap = (f_dist - s_dist) * 1000
 
     speed = calculate_speed_for_cell(f_time - s_time, dist_gap)
@@ -305,6 +309,7 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
             long_ttf[prev_cell[1]][prev_cell[0]][weekID][speed_array].append(speed)
             long_ttf[prev_cell[1]][prev_cell[0]][weekID][time_array].append(seg_dist / speed)
             update_driving_states(dr_state, g_path_len + ind, s_dist, seg_dist, dist)
+            borders.append(s_time + (f_time - s_time) * (seg_dist / dist_gap))
 
         seg_dist = get_geo_distance(*int_point, *f_segment)
         if seg_dist:
@@ -435,6 +440,7 @@ def get_geo_distance(lon1, lat1, lon2, lat2):
     c = 2 * math.asin(math.sqrt(a))
     r = 6371
     return c * r
+
 
 def read_data(data_file):
     with open('./data/' + data_file) as dfile:
