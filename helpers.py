@@ -265,7 +265,7 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
 
     dr_state.extend([np.zeros(4) for _ in cells[1:]])
 
-    start_time = (timeID + s_time) % 1439
+    start_time = (timeID + (s_time // 60)) % 1439
     # example of time been name: '18.25.00'
     time_bin = int((start_time - start_time % 5) // 5)
 
