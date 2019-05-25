@@ -2,6 +2,7 @@ from __future__ import division
 
 import datetime
 import json
+import math
 
 import numpy as np
 
@@ -247,18 +248,7 @@ def aggregate_historical_data(short_ttf, long_ttf):
 
 
 def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID, s_time, f_time, s_dist, f_dist,
-                             short_ttf, long_ttf, dr_state, g_path_len, dist):
-
-    def get_dist_in_metres(dist_gap, dist_gap_in_deg, dist_in_deg):
-        """
-        Returns calculated part of the path in metres.
-
-        :param dist_gap: part of the path in kilometres
-        :param dist_gap_in_deg: part of the path in degrees
-        :param dist_in_deg: full path in degrees
-        :return: part of the path in metres
-        """
-        return dist_gap_in_deg / dist_in_deg * dist_gap
+                             short_ttf, long_ttf, dr_state, g_path_len, dist, borders):
 
     speed_array = 'speeds'
     time_array = 'times'
@@ -307,7 +297,7 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
 
         # calculate lenght of the each part of the segment
         # save extracted speed and calculated time as short-term and ling-term traffic feature for particular cells
-        seg_dist = get_dist_in_metres(dist_gap, find_line_segment_length(*s_segment, *int_point), dist_in_deg)
+        seg_dist = get_geo_distance(*s_segment, *int_point) * 1000
         if seg_dist:
             segs.append(seg_dist)
             short_ttf[prev_cell[1]][prev_cell[0]][time_bin][speed_array].append(speed)
@@ -316,7 +306,7 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
             long_ttf[prev_cell[1]][prev_cell[0]][weekID][time_array].append(seg_dist / speed)
             update_driving_states(dr_state, g_path_len + ind, s_dist, seg_dist, dist)
 
-        seg_dist = get_dist_in_metres(dist_gap, find_line_segment_length(*int_point, *f_segment), dist_in_deg)
+        seg_dist = get_geo_distance(*int_point, *f_segment)
         if seg_dist:
             segs.append(seg_dist)
             short_ttf[cell[1]][cell[0]][time_bin][speed_array].append(speed)
@@ -432,6 +422,19 @@ def get_borders_coords(i, j, zero_coords, cell_params):
 
     return lines
 
+
+def get_geo_distance(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees)
+    """
+    lon1, lat1, lon2, lat2 = list(map(math.radians, list(map(float, [lon1, lat1, lon2, lat2]))))
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    r = 6371
+    return c * r
 
 def read_data(data_file):
     with open('./data/' + data_file) as dfile:
