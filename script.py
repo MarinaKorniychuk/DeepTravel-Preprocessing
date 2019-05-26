@@ -26,7 +26,7 @@ def define_travel_grid_path(data, coords, short_ttf, long_ttf, n):
 
         # T_path - sequence of grid indices that correspond historical gps points
         # G_path - sequence of grid indices  of full path (with intermediate cells without gps points)
-        dd['T_X'], dd['T_Y'], dd['G_X'], dd['G_Y'], dd['hour_bin'], dd['time_bin'], dd['dr_state'], dd['borders'] = helpers.map_gps_to_grid(
+        dd['T_X'], dd['T_Y'], dd['G_X'], dd['G_Y'], dd['hour_bin'], dd['time_bin'], dd['dr_state'], dd['borders'], dd['mask'] = helpers.map_gps_to_grid(
             x, y,
             dd['timeID'], dd['weekID'],
             dd['time_gap'], dd['dist_gap'],

@@ -39,6 +39,7 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
     dr_state = [np.zeros(4), ]
 
     borders = []
+    mask = []
 
     points = zip(longs, lats)
     prev_point = ()
@@ -86,7 +87,7 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
             for cell in cells[1: -1]:
                 G_path_X.append(cell[0])
                 G_path_Y.append(cell[1])
-
+                mask.append(0)
                 hour_bins.append(hour_bin)
                 time_bins.append(time_bin)
 
@@ -98,13 +99,14 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
             hour_bins.append(hour_bin)
             time_bin = int((timeID + time_gap[ind] // 60) % 1439 // 5)
             time_bins.append(time_bin)
+            mask.append(1)
 
         prev_point = point_coords
 
     dr_state = [nd.tolist() for nd in dr_state]
     borders.append(time_gap[-1])
 
-    return T_path_X, T_path_Y, G_path_X, G_path_Y, hour_bins, time_bins, dr_state, borders
+    return T_path_X, T_path_Y, G_path_X, G_path_Y, hour_bins, time_bins, dr_state, borders, mask
 
 
 def find_intermediate_cells(coords_s, s_x_ind, s_y_ind, coords_f, f_x_ind, f_y_ind, cell_params):
