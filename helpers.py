@@ -106,6 +106,8 @@ def map_gps_to_grid(longs, lats, timeID, weekID, time_gap, dist_gap, cell_params
     dr_state = [nd.tolist() for nd in dr_state]
     borders.append(time_gap[-1])
 
+    if len(borders) != len(T_path_X):
+        borders.append(time_gap[-1])
     return T_path_X, T_path_Y, G_path_X, G_path_Y, hour_bins, time_bins, dr_state, borders, mask
 
 
@@ -311,7 +313,8 @@ def extract_traffic_features(cells, s_point, f_point, int_points, timeID, weekID
             long_ttf[prev_cell[1]][prev_cell[0]][weekID][speed_array].append(speed)
             long_ttf[prev_cell[1]][prev_cell[0]][weekID][time_array].append(seg_dist / speed)
             update_driving_states(dr_state, g_path_len + ind, s_dist, seg_dist, dist)
-            borders.append(s_time + (f_time - s_time) * (seg_dist / dist_gap))
+            if ind == 0:
+                borders.append(s_time + (f_time - s_time) * (seg_dist / dist_gap))
 
         seg_dist = get_geo_distance(*int_point, *f_segment)
         if seg_dist:
